@@ -68,14 +68,19 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
     answer = ""
     turns = 1
     while response.stop_reason == "tool_use" and turns < MAX_TOOL_CALLS:
-        messages.append({"role": "assistant", "content": text_of(response)})
+        messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": tool_results(response)})
-        answer = text_of(response)
+        
         response = client.messages.create(
-            model=MODEL, max_tokens=4096, system=runtime_preamble() + SYSTEM_PROMPT + TONE_ADDENDUM,
-            thinking={"type": "adaptive"}, tools=tools, messages=messages,
+            model=MODEL, 
+            max_tokens=4096, 
+            system=runtime_preamble() + SYSTEM_PROMPT + TONE_ADDENDUM,
+            thinking={"type": "adaptive"}, 
+            tools=tools, 
+            messages=messages,
         )
         turns += 1
+        answer = text_of(response)
 
     return answer
 
@@ -119,14 +124,14 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
                 "type": "object",
                 "properties": {
                     "flight_no": {"type": "string"},
-                    "date": {"type": "string", "description": "MM/DD/YYYY"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD"},
                 },
                 "required": ["flight_no", "date"],
             },
         },
         {
             "name": "search_alternatives",
-            "description": "search",
+            "description": "you need to search and propose atleast 3 alterantives to the customer to reach their destination",
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}},
@@ -220,6 +225,103 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}, "message": {"type": "string"}},
                 "required": ["pnr", "message"],
+            },
+        },
+        {
+            "name": "get_customer_profile",
+            "description": (
+                "Look up the customer's profile by PNR. Returns loyalty tier, status, and "
+                "any flags that affect scope: group, partner, unaccompanied minor, or SSR."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {"pnr": {"type": "string"}},
+                "required": ["pnr"],
+            },
+        },
+        {
+            "name": "get_flight_history",
+            "description": (
+                "Look up the customer's flight history by PNR. Returns a list of flights "
+                "with their dates, numbers, and statuses."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {"pnr": {"type": "string"}},
+                "required": ["pnr"],
+            },
+        },
+        {
+            "name": "get_flight_details",
+            "description": (
+                "Look up the details of a specific flight by flight number and date. "
+                "Returns departure and arrival airports, scheduled and actual times, "
+                "and any delay or cancellation information."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "flight_no": {"type": "string"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD"},
+                },
+                "required": ["flight_no", "date"],
+            },
+        },
+        {
+            "name": "get_airport_info",
+            "description": (
+                "Look up information about an airport by its IATA code. Returns the airport's "
+                "name, city, country, and any relevant notes about operations or facilities."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {"iata_code": {"type": "string"}},
+                "required": ["iata_code"],
+            },
+        },
+        {
+            "name": "get_weather_forecast",
+            "description": (
+                "Look up the weather forecast for a specific airport on a given date. "
+                "Returns expected conditions, temperature, and any weather advisories."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "iata_code": {"type": "string"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD"},
+                },
+                "required": ["iata_code", "date"],
+            },
+        },
+        {
+            "name": "hospitality_services",
+            "description": (
+                "Look up available hospitality services for a specific airport on a given date. "
+                "Returns a list of services such as lounges, dining options, and other amenities."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "iata_code": {"type": "string"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD"},
+                },
+                "required": ["iata_code", "date"],
+            },
+        },
+        {
+            "name": "assurance_services",
+            "description": (
+                "Look up available assurance services for a specific airport on a given date. "
+                "Returns a list of services such as travel insurance, emergency assistance, and other support options."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "iata_code": {"type": "string"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD"},
+                },
+                "required": ["iata_code", "date"],
             },
         },
     ]
