@@ -17,23 +17,31 @@ from support import (MODEL, SYSTEM_PROMPT, call_local, execute_tool, mcp_client,
 MAX_TOOL_CALLS = 8  # Larkspur's own build capped the loop here; then a human takes over.
 
 TONE_ADDENDUM = ""                       # ✏️ Build 4, step 4.1, intelligence lane
-EXTRA_TOOLS: List[Dict[str, Any]] = [
+EXTRA_TOOLS: List[Dict[str, Any]] = [    # ✏️ Build 2, step 2.1: schemas for the tools you add
     {
-        "name": "next_day_available",
-        "description":  "Use this when a customer's flight is cancelled or delayed and they want to know when the next available departure is. "
-                        "Get the next available day for a specific flight number. "
-                        "Returns the next date for the closest one with available seats. "
-                        "Proposes the next 3 available dates for the flight number provided.",
+        "name": "next_available_day",
+        "description": (
+            "Find the earliest date with an available seat on any Larkspur flight between "
+            "two airports, starting from a given date. Use this when the customer asks "
+            "when they can next fly, or when searching for rebooking options requires "
+            "knowing the first open day. Requires origin, destination, and a start date. "
+            "Returns the earliest date with availability."
+        ),
         "input_schema": {
             "type": "object",
-            "properties": {"flight_no": {"type": "string"}},
-            "required": ["flight_no"],
+            "properties": {
+                "origin": {"type": "string", "description": "IATA airport code for the origin airport"},
+                "dest": {"type": "string", "description": "IATA airport code for the destination airport"},
+                "date": {"type": "string", "description": "Start date in YYYY-MM-DD format"},
+                "cabin": {"type": "string", "description": "Cabin class: Y (economy), C (business). Defaults to Y."},
+            },
+            "required": ["origin", "dest", "date"],
         },
     },
-]   # ✏️ Build 2, step 2.1: schemas for the tools you add
-LOCAL_TOOLS: Dict[str, Any] = {
-    "next_day_available": next_available_day,
-}         # ✏️ Build 2, step 2.1: the functions behind them
+]
+LOCAL_TOOLS: Dict[str, Any] = {          # ✏️ Build 2, step 2.1: the functions behind them
+    "next_available_day": next_available_day,
+}
 
 
 def text_of(response) -> str:
@@ -97,7 +105,7 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
         turns += 1
         answer = text_of(response)
 
-    return answer
+    return text_of(response)
 
 
 def tool_list() -> List[Dict[str, Any]]:                   # ✏️ Build 2, step 2.2
@@ -146,7 +154,13 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "search_alternatives",
-            "description": "you need to search and propose atleast 3 alterantives to the customer to reach their destination",
+            "description": (
+                "Search for available alternative Larkspur flights for a disrupted passenger. "
+                "Call this after get_flight_status confirms a cancellation or significant delay "
+                "and the customer wants to be rebooked. Requires the PNR. Returns a list of "
+                "available flight options with option_ids to use with hold_seat."
+            ),
+
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}},
